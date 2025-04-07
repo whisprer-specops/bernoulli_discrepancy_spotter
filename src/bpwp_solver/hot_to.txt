@@ -1,0 +1,4 @@
+- run laplace estimator
+-  enter suggested values into denoiser
+- denoise
+- take output for further porcessing such as encrypt detect

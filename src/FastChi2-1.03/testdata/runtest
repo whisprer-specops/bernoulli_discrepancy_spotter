@@ -1,0 +1,83 @@
+#! /usr/bin/env bash
+
+testdir=`dirname $0`
+outdir=/tmp/fastchi2
+
+export LC_ALL=C        # Use "." for decimal point in awk, even in countries where "," is used
+
+mkdir -p ${outdir}
+
+executable=${testdir}/../runchi2
+
+nharmonics=3            # light curves with 1f,2f,3f harmonic components
+freqmax=12              # at frequencies up to 12 cycles/day (2 hours)
+margin=10               # If chi-squared at a grid point is within 10 of the best so far, 
+                        # do a parabolic search for the minimum
+
+
+dataname=heptest
+
+
+datafile=${testdir}/${dataname}.in  
+    # Data from the Hipparcos Variability Annex Part 1 
+    # (Periodic variables) for catalog numbers <10000
+    # Approx 8% of the catalog.
+    # <http://www.rssd.esa.int/index.php?project=HIPPARCOS&page=variables>
+
+outfile=${outdir}/${dataname}.out
+
+errfile=${outdir}/${dataname}.err
+
+periods=${outdir}/${dataname}.periods
+
+summary=${outdir}/${dataname}.summary
+
+$executable --help
+
+echo
+echo "Now running on" `grep '|P|' $datafile | wc -l` "Hipparcos periodic variables."
+echo "On a ~2.5 GHz machine this takes roughly 1 second per star."
+echo
+
+set -x
+pwd
+time $executable $nharmonics $freqmax \
+            -i $datafile \
+            -O $outfile  \
+            -e $errfile
+set +x
+
+awk 'BEGIN {FS = "\t"} \
+    substr($1,1,1) != "#" { \
+            split($1,hipfields,"|") ; \
+            printf("%s\t%s\t%12.6f\t%5.4f\n",hipfields[1],substr(hipfields[8],6),1/$2,substr(hipfields[8],6)*$2) \
+            }' \
+     $outfile > $periods
+
+awk \
+    'function min(x,y) {return (x < y ? x : y)} \
+     function max(x,y) {return (x > y ? x : y)} \
+     function approx(value, testvalue) { return (value >= min(testvalue * 0.99, 1.0/( 1e-4 + 1.0/testvalue))) \
+                                            &&   (value <= max(testvalue * 1.01, 1.0/(-1e-4 + 1.0/testvalue))) } \
+     BEGIN {NTOTAL = 0;NCORRECT=0 ; NDOUBLE=0; NHALF=0; NTHIRD=0}\
+     NF==4 {NTOTAL++ ; \
+            if (approx($3,$2)) NCORRECT++; \
+            else if ((approx($3,$2/2.0))) NDOUBLE++; \
+            else if ((approx($3,$2*2.0))) NHALF++; \
+            else if ((approx($3,$2*3.0))) NTHIRD++; \
+            } \
+     END   {print "\nOf",NTOTAL,"stars with nominal periods from this data or the ";\
+            print "previous literature, runchi2 identifies:"; \
+            print "  ",NCORRECT,"at the nominal period (+/- 1e-4 cycles/day or 1%)"; \
+            print "  ",NDOUBLE,"at the 1/2 period alias"; \
+            print "  ",NHALF,"at the 2x period alias"; \
+            print "  ",NTHIRD,"at the 3x period alias"; \
+            print "(Some variation may occur on different machines, using different versions of"; \
+            print "compilers and libraries.  The reference run has 174 stars,"; \
+            print "with 71, 23, 25, and 25 matching periods)"; \
+            print "This indicates that the software build ",((NCORRECT+NDOUBLE+NHALF+NTHIRD) > 0.75*NTOTAL ? "PASSES" : "FAILS");
+           }' $periods > $summary
+           
+cat $summary
+# Return a 0 (success) if the software PASSES, otherwise return 1
+grep -q PASSES $summary

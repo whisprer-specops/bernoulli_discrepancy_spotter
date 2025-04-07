@@ -1,0 +1,102 @@
+This is the reference implementation for the algorithm described in
+Palmer, D.M., 2009 (ApJ accepted)
+"A Fast Chi-squared Technique For Period Search of Irregularly Sampled Data."
+
+This program, updates, and further information may be found at 
+http://public.lanl.gov/palmer/fastchi2.html
+
+Requires the GNU Scientific Library (GSL).
+
+To compile run
+    make
+to test on sample data, run
+    make check
+for more installation details, see INSTALL.
+
+Usage:
+    runchi2 nharmonics freqmax
+            [-f freqmin]
+            [-d detrendorder]
+            [-t t0]
+            [-T timespan]
+            [-s oversampling]
+            [-m chi2margin]
+            [-i infile]
+            [-o outfile]
+            [-O outfile_with_frequency_adjustment]
+            [-e stderrfile]
+            [-D diagnosticfile]
+            [-c 'comment string']
+    nharmonics includes fundamental. ( 3 -> {fundamental, 2f, 3f})
+    freqmax is the highest fundamental frequency searched and determines FFT size
+    freqmin limits the search range (defaults to 1 cycle over the span of each observation)
+    detrendorder is the order of the polynomial detrending, default 3,
+        value of zero will just do constant
+    t0 is the time zero of the sinusoids and the detrending polynomial, 
+        default is midway between endpoints.  Value is given in each output line
+    timespan is used to determine order of the FFT.  If it is not given, it is taken
+        from the span of the first source
+    oversampling determines how tight the search is. The fundamental frequency step
+         is 1/(oversampling * nharmonics * firsttimespan), rounded down
+         to give a power of 2 size in the FFTs
+    chimargin is how much improvement to expect from the singleChi peaking 
+         routine.
+    infile format is discussed in next comment block
+    outfile and outfile_with_frequency_adjust may both be requested
+        outfile_with_frequency_adjust finds the frequency with the greatest significance
+        after adjusting for number of trials to that point (taken as proportional to the frequency),
+        as a Frequentist would find appropriate.
+        If you are a Bayesian, it uses the likelihood based on a prior probability function
+        that is uniform in log(frequency) (== uniform in log(period)), and this works out to exactly
+        the same calculation.
+        If neither is requested, then outfile is set to stdout.  Stdout can be explicitly requested
+        with name '-'.
+        Output file format is discussed two comment blocks down
+    diagnosticfile contains the chi-squared reduction (larger is better) for each frequency
+    The comment string is ignored.  However since the entire command line is included
+        in the outfile header, it is echoed there.
+
+The input file can include any number of sources, with a set of lines for each source in the format:
+    echoline
+    n
+    t0 x0 err0
+    t1 x1 err1
+    ...
+    tn xn errn
+The echoline is used as the first field of the corresponding line of the output file, and so for ease of
+interpretation it should not have any tab characters in it and it should not start with '#'.
+
+
+The output file format is a multi-line header (lines beginning with #)
+followed by a tab-delimited line for each source in the format:
+    echoline fbest ndata chimin chi0 chidetrend tzero harmbaseline sin1 cos1 sin2 cos2...  d0 d1 d2...
+where 
+echoline comes from the input file (e.g. the name of the source)
+fbest is the best frequency, 
+ndata is the number of data samples that went into the calculation,
+chimin is the minimum chisquared at fbest, 
+chidetrend is the chisquared of the detrended data,
+chi0 is the chisquared of the non-detrended data
+    (== chidetrend if detrendorder == 0)
+tzero is the (arbitrary) phase=0 time
+harmbaseline is the constant term
+sin1 cos1 are the Fourier components at fbest 
+sin2 cos2 are the Fourier components at 2*fbest
+...
+d0 d1 d2... coefficients of detrending polynomial fit
+Note that there are two constant terms (harmbaseline and d0) that must be added.
+
+As an example, if you wish to calculate the model value at time t, using
+parameters named as in the header line, for a 3-harmonic fit 
+with an order-2 polynomial detrending:
+
+phi(t) = (t - tzero) * fbest ; // in cycles
+
+Fit(t) = (harmbaseline + d0)
+        + sin1 * sin(1 * phi(t) * 2 * pi) + cos1 * cos(1 * phi(t) * 2 * pi)
+        + sin2 * sin(2 * phi(t) * 2 * pi) + cos2 * cos(2 * phi(t) * 2 * pi)
+        + sin3 * sin(3 * phi(t) * 2 * pi) + cos3 * cos(3 * phi(t) * 2 * pi)
+        + d1 * (t - tzero) + d2 * (t - tzero) * (t - tzero);
+
+To exploit parallelism (multiple cores, multiple CPUs, and/or multiple boxes)
+run the executable simultaneously with multiple input and output files.

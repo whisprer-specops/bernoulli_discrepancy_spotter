@@ -1,0 +1,30 @@
+2010-08-04
+    chirunner2.{c,h} Version 1.03
+    Improved README and output format to make them more consistent
+    Initialized nmeas in chi2Driver.c:readsource() to prevent an assertion failure
+    
+
+2009-06-25
+    Made the runtest more robust against internationalization.
+    No change to source code.
+    tarball version changed to 1.02
+    
+2009-03-25
+    Pushed MAXPOINTS to 100000
+
+2009-01-16 - 21
+  chirunner2.{c,h} Version 1.01
+    Incorrect diagnostic output (wrong frequency) when freqmin set
+    tstart changed from float to double.
+    Search data for the earliest and latest times so that input data not required to be in order
+    More error checking
+    Format of frequency in output depends on stepsize and range.    
+  CHANGELOG added to tarball
+
+
+2009-01-11
+  fastchi2.c   Version 1.00
+  fastchi2.h   Version 1.00
+  chirunner2.c Version 1.00
+  chirunner2.h Version 1.00
+  First release, simultaneous with placing the paper on arxiv:0901.1913
